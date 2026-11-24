@@ -1,10 +1,10 @@
-import { StatusBar, StyleSheet, Text, View } from 'react-native';
+import { StatusBar, View } from 'react-native';
 import {
   SafeAreaProvider,
-  SafeAreaView
 } from 'react-native-safe-area-context';
 import { GLOBAL_STYLES } from './src/theme/globalStyles';
-import { TYPOGRAPHY } from './src/theme/typography';
+import { StackNavigation } from './src/navigation/StackNavigation';
+import { ExploreProvider } from './src/context/ExploreContext';
 
 function App() {
   const isDarkMode = true;
@@ -20,11 +20,9 @@ function App() {
 function AppContent() {
   return (
     <View style={[GLOBAL_STYLES.screen, GLOBAL_STYLES.container]}>
-      <SafeAreaView>
-        <Text style={TYPOGRAPHY.h1}>
-          Explore
-        </Text>
-      </SafeAreaView>
+      <ExploreProvider>
+        <StackNavigation />
+      </ExploreProvider>
     </View>
   );
 }
