@@ -1,5 +1,4 @@
-import { Text, TextInput, View } from "react-native"
-import { Button, StyleSheet } from 'react-native';
+import { FlatList, Image, Text, TextInput, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useNavigation } from "@react-navigation/native";
 import Animated, {
@@ -12,34 +11,28 @@ import { useEffect, useState } from "react";
 import { COLORS } from "../../theme/colors";
 import { SPACING } from "../../theme/spacing";
 import SearchIcon from "../../components/Icons/SearchIcon";
+import { fetchApi } from "../../api";
+import { endpoints } from "../../constants";
+import { SearchElement } from "../../types/search";
+import GoBackIcon from "../../components/Icons/GoBackIcon";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../../navigation/StackNavigation";
+import StartIcon from "../../components/Icons/StartIcon";
+import { useDebounce } from "../../hooks/useDebounce";
+import { BOX_HEIGHT, styles } from "./styles";
 
-const pulseAnimation = {
-  '0%': { scale: 1, opacity: 1 },
-  '50%': { scale: 1.05, opacity: 0.4 },
-  '100%': { scale: 1, opacity: 1 },
-};
 
-function PulsingBadge() {
-  return (
-    <Animated.View style={{
-      width: 100,
-      height: 100,
-      borderRadius: 50,
-      backgroundColor: '#ef4444',
-      animationName: pulseAnimation,
-      animationDuration: 2000,
-      animationIterationCount: 'infinite',
-    }} />
-  );
-}
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const BOX_HEIGHT = 40;
 
 export const SearchScreen = () => {
     const [containerWidth, setContainerWidth] = useState(0);
     const [query, setQuery] = useState('');
+    const [data, setData] = useState([]);
 
-    const navigation = useNavigation();
+    const debouncedQuery = useDebounce(query, 800);
+
+    const navigation = useNavigation<NavigationProp>();
     const width = useSharedValue(BOX_HEIGHT);
 
     const animatedStyle = useAnimatedStyle(() => {
@@ -51,14 +44,41 @@ export const SearchScreen = () => {
     });
 
     const toggleWidth = () => {
-        width.value = width.value === BOX_HEIGHT ? containerWidth : BOX_HEIGHT;
+        width.value = width.value === BOX_HEIGHT ? (containerWidth - 40) : BOX_HEIGHT;
     };
+
+    const renderStars = (average = 0) => {
+        if (!average) {
+            return <Text style={TYPOGRAPHY.secondary}>There's not rating yet</Text>
+        }
+        
+        const rating = Math.min(5, Math.max(0, average / 2));
+        const filledStars = Math.round(rating);
+
+        return Array.from({ length: 5 }, (_, idx) => (
+            <StartIcon
+                key={idx}
+                color={idx < filledStars ? 'yellow' : 'gray'}
+            />
+        ));
+    }
 
     useEffect(() => {
         if(containerWidth) {
             toggleWidth()
         }
     }, [containerWidth]);
+
+    useEffect(() => {
+        if (!debouncedQuery.trim()) {
+            setData([]);
+            return;
+        }
+
+        fetchApi(`${endpoints.search}${debouncedQuery}`)
+            .then(setData)
+            .catch(console.log);
+    }, [debouncedQuery]);
 
     return (
         <SafeAreaView 
@@ -68,9 +88,11 @@ export const SearchScreen = () => {
             }}
         >
             <View style={styles.header}>
-                {/* <Text style={TYPOGRAPHY.h1}>
-                    Search
-                </Text> */}
+                <GoBackIcon
+                    color={COLORS.COMMON.white}
+                    style={[{ alignSelf: 'center', paddingRight: SPACING.MD }]}
+                    onPress={() => navigation.navigate('Explore')}
+                />
                 <Animated.View style={[styles.box, animatedStyle]}>
                     <SearchIcon color={COLORS.PRIMARY.default} width={SPACING.LG} />
                     <TextInput
@@ -88,27 +110,38 @@ export const SearchScreen = () => {
                 </Animated.View>
             </View>
 
-            {/* <Text style={TYPOGRAPHY.h3} onPress={() => navigation.goBack()}>
-                Go back
-            </Text> */}
+            <FlatList<SearchElement>
+                data={data ?? []}
+                keyExtractor={(item, index) =>
+                    `${item?.show?.id ?? item?.show?.name ?? index}`
+                }
+                contentContainerStyle={{marginVertical: SPACING.LG,}}
+                ListHeaderComponent={() => {
+                    return (
+                        data?.length ? <Text style={[TYPOGRAPHY.h2, {marginBottom: SPACING.MD}]}>Results</Text> : null
+                    )
+                }}
+                renderItem={({ item }) => (
+                    <View style={styles.card}>
+                        <Image
+                            source={{ uri: item?.show?.image?.original }}
+                            style={{
+                                width: 100,
+                                height: 100,
+                                borderRadius: 10,
+                                objectFit: 'fill'
+                            }}
+                        />
+                        <View>
+                            <Text style={TYPOGRAPHY.h3}>{item?.show.name}</Text>
+                            <Text style={[TYPOGRAPHY.secondary, {marginVertical: 10}]}>{item?.show?.genres?.[0] ?? "There's not genre yet"}</Text>
+                            <View style={styles.ratingContainer}>
+                                {renderStars(item?.show?.rating?.average ?? 0)}
+                            </View>
+                        </View>
+                    </View>
+                )}
+            />
         </SafeAreaView>
     )
 }
-
-
-const styles = StyleSheet.create({
-  header: {
-    width: '100%',
-    alignItems: 'flex-end',
-  },
-  box: {
-    height: BOX_HEIGHT,
-    backgroundColor: COLORS.BACKGROUND.surface,
-    borderRadius: BOX_HEIGHT / 2,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    overflow: 'hidden',
-  },
-});
